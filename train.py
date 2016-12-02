@@ -6,7 +6,7 @@ import time
 import datetime
 import data_helpers
 from text_cnn import TextCNN
-from binary_class_data_loader import BinaryClassDataLoader
+#from binary_class_data_loader import BinaryClassDataLoader
 from multi_class_data_loader import MultiClassDataLoader
 #from word_data_processor import WordDataProcessor
 from char_data_processor import CharDataProcessor
@@ -22,6 +22,7 @@ tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (defau
 tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularizaion lambda (default: 0.0)")
 
 # Training parameters
+tf.flags.DEFINE_integer("dev_batch_size", 4096, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("num_epochs", 200, "Number of training epochs (default: 200)")
 tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
@@ -155,14 +156,21 @@ with tf.Graph().as_default():
         # Generate batches
         batches = data_helpers.batch_iter(
             list(zip(x_train, y_train)), FLAGS.batch_size, FLAGS.num_epochs)
-        # Training loop. For each batch...
+        # Training loop. For each batch...\
+        
+        
+        
         for batch in batches:
             x_batch, y_batch = zip(*batch)
             train_step(x_batch, y_batch)
             current_step = tf.train.global_step(sess, global_step)
             if current_step % FLAGS.evaluate_every == 0:
-                print("\nEvaluation:")
-                dev_step(x_dev, y_dev, writer=dev_summary_writer)
+                print("\nEvaluation:") 
+                dev_batches = data_helpers.batch_iter(
+                list(zip(x_dev, y_dev)), FLAGS.dev_batch_size, 1)
+                for dev_batch in dev_batches:
+                    x_dev_batch, y_dev_batch = zip(*dev_batch)
+                    dev_step(x_dev_batch, y_dev_batch, writer=dev_summary_writer)
                 print("")
             if current_step % FLAGS.checkpoint_every == 0:
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
