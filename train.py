@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-
+import numpy as np
 import tensorflow as tf
 import os
 import time
@@ -13,16 +13,20 @@ from char_data_processor import CharDataProcessor
 
 # Parameters
 # ==================================================
+# use this for static wordembedding
+# change the path to static the vec.bin is a Chinese word2vec file trained from the sina weibo
+tf.flags.DEFINE_string("word2vec","./data/rt-polaritydata/vec.bin", "word2vec file with pre-trained embedding (default: None)")
+tf.flags.DEFINE_integer("dev_batch_size", 4096, "Batch Size (default: 64)")
 
 # Model Hyperparameters
-tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
+tf.flags.DEFINE_integer("embedding_dim", 50, "Dimensionality of character embedding (default: 128)")
 tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
 tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
 tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
 tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularizaion lambda (default: 0.0)")
 
+
 # Training parameters
-tf.flags.DEFINE_integer("dev_batch_size", 4096, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("num_epochs", 200, "Number of training epochs (default: 200)")
 tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
@@ -119,6 +123,31 @@ with tf.Graph().as_default():
 
         # Initialize all variables
         sess.run(tf.initialize_all_variables())
+        if FLAGS.word2vec:
+            # initial matrix with random uniform, vocab_processor.vocabulary_ is the vocabulalu
+            initW = np.random.uniform(-0.25, 0.25, (len(vocab_processor.vocabulary_), FLAGS.embedding_dim))
+            # load any vecotors from the
+            print("Load word2vec file {}\n".format(FLAGS.word2vec))
+            #read as a binary file
+            with open(FLAGS.word2vec, "rb") as f:
+                head = f.readline()
+                vocab_size, layer1_size = map(int, head.split())
+                binary_len = np.dtype('float32').itemsize * layer1_size
+                for line in xrange(vocab_size):
+                    word = []
+                    while True:
+                        ch = f.read(1)
+                        if ch == ' ':
+                            word = ''.join(word)
+                            break
+                        if ch != '\n':
+                            word.append(ch)
+                    idx = vocab_processor.vocabulary_.get(word)
+                    if idx != None:
+                        initW[idx] = np.fromstring(f.read(binary_len), dtype='float32')
+                    else:
+                        f.read(binary_len)
+            sess.run(cnn.W.assign(initW))
 
         def train_step(x_batch, y_batch):
             """
@@ -157,7 +186,6 @@ with tf.Graph().as_default():
         batches = data_helpers.batch_iter(
             list(zip(x_train, y_train)), FLAGS.batch_size, FLAGS.num_epochs)
         # Training loop. For each batch...\
-        
         
         
         for batch in batches:
